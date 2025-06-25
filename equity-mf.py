@@ -1,5 +1,5 @@
 '''
-For Indian Stocks
+For Mutual Funds
 '''
 
 
@@ -110,7 +110,7 @@ def get_portfolio_values(input_csv_path, output_csv_path):
     print(f"Last positions report saved to 'last_positions_report.csv'")
 
 # Example usage
-input_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-stocks.csv'
+input_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-mf.csv'
 output_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-stocks-output.csv'
 get_portfolio_values(input_csv_path, output_csv_path)
 
