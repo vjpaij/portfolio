@@ -90,7 +90,7 @@ def get_portfolio_values(input_csv_path, output_csv_path):
             continue
     
     # Reorder columns for daily values
-    final_df = final_df[['Symbol', 'Transaction Date', 'Total Shares', 'Total value']]
+    final_df = final_df[['Symbol', 'Transaction Date', 'Total Shares', 'Price', 'Total value']]
     
     # Prepare last positions report
     last_positions = last_positions[['Symbol', 'Transaction Date', 'Price', 'Total Shares', 'Total value']]
