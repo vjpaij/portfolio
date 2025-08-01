@@ -43,6 +43,7 @@ def fetch_dividend_calendar(input_csv_path, output_csv_path):
                     for date, amount in dividends.items():
                         calendar_data.append({
                             "Month": date.strftime('%B'),
+                            "Month Number": (date.month if date.month >= 4 else date.month + 12),  # Apr=4 → Mar=15
                             "Dividend Date": date.strftime('%Y-%m-%d'),
                             "Symbol": symbol,
                             "Total Shares": quantity,
@@ -59,7 +60,8 @@ def fetch_dividend_calendar(input_csv_path, output_csv_path):
 
     if calendar_data:
         df_calendar = pd.DataFrame(calendar_data)
-        df_calendar.sort_values(by=['Month', 'Dividend Date', 'Symbol'], inplace=True)
+        df_calendar.sort_values(by=['Month Number', 'Dividend Date', 'Symbol'], inplace=True)
+        df_calendar.drop(columns='Month Number', inplace=True)
 
         df_calendar.to_csv(output_csv_path, index=False)
         print(f"✅ Dividend calendar written to {output_csv_path}")
