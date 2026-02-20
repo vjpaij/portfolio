@@ -98,12 +98,17 @@ def get_portfolio_values(input_csv_path, output_csv_path):
     for symbol in symbols:
         ignored_symbols = []  # To store symbols not found in both NSE and BSE
 
-        symbol_trans = (df_transactions[df_transactions['Symbol'] == symbol]
-                       .sort_values('Transaction Date')
-                       .drop_duplicates('Transaction Date', keep='last')
-                       .copy())
+        symbol_trans = (
+        df_transactions[df_transactions['Symbol'] == symbol]
+        .reset_index()
+        .sort_values(['Transaction Date', 'index'],kind='mergesort')
+        .groupby('Transaction Date', as_index=False)
+        .last()
+        .drop(columns='index')
+        )
 
-        start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
+        # start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
+        start_date = datetime.today() - timedelta(days=10)
         end_date = datetime.today()
 
         price_df = get_best_price_history(symbol, start_date, end_date)
