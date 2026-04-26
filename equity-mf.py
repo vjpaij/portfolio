@@ -32,7 +32,8 @@ def get_portfolio_values(input_csv_path, output_csv_path):
                        .copy())
         
         # Get historical prices for this symbol
-        start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
+        # start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
+        start_date = datetime.today() - timedelta(days=15)
         end_date = datetime.today()
         
         try:

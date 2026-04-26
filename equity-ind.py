@@ -108,7 +108,7 @@ def get_portfolio_values(input_csv_path, output_csv_path):
         )
 
         # start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
-        start_date = datetime.today() - timedelta(days=10)
+        start_date = datetime.today() - timedelta(days=15)
         end_date = datetime.today()
 
         price_df = get_best_price_history(symbol, start_date, end_date)

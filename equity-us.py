@@ -25,7 +25,8 @@ def get_portfolio_values(input_csv_path, output_csv_path):
     last_positions = pd.DataFrame()
     
     # Get USD/INR exchange rate data for all required dates
-    start_date = df_transactions['Transaction Date'].min() - timedelta(days=1)
+    # start_date = df_transactions['Transaction Date'].min() - timedelta(days=1)
+    start_date = datetime.today() - timedelta(days=20)
     end_date = datetime.today()
     inr_rate = yf.Ticker("INR=X").history(start=start_date, end=end_date)
     inr_rate = inr_rate.reset_index()
@@ -42,7 +43,8 @@ def get_portfolio_values(input_csv_path, output_csv_path):
                        .copy())
         
         # Get historical prices for this symbol
-        start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
+        # start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
+        start_date = datetime.today() - timedelta(days=20)
         end_date = datetime.today()
         
         try:
