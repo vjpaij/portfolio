@@ -146,9 +146,9 @@ def get_portfolio_values(input_csv_path, output_csv_path):
     portfolio_value = final_df.groupby('Transaction Date')['Total value'].sum().reset_index()
     portfolio_value.columns = ['Transaction Date', 'Portfolio Value']
 
-    final_df.to_csv('/Users/in22417145/PycharmProjects/portfolio/data/per_symbol_values.csv', index=False)
+    final_df.to_csv('data/per_symbol_values.csv', index=False)
     portfolio_value.to_csv(output_csv_path, index=False)
-    last_positions.to_csv('/Users/in22417145/PycharmProjects/portfolio/data/last_day_values.csv', index=False)
+    last_positions.to_csv('data/last_day_values.csv', index=False)
 
     print("✅ Per-symbol daily values saved.")
     print("✅ Aggregated portfolio values saved.")
@@ -163,6 +163,6 @@ def get_portfolio_values(input_csv_path, output_csv_path):
         print("\n✅ All symbols were successfully processed from either NSE or BSE.")
 
 # Example usage
-input_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-stocks.csv'
-output_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-stocks-output.csv'
+input_csv_path = 'data/ind-stocks.csv'
+output_csv_path = 'data/ind-stocks-output.csv'
 get_portfolio_values(input_csv_path, output_csv_path)

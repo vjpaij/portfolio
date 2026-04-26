@@ -102,17 +102,17 @@ def get_portfolio_values(input_csv_path, output_csv_path):
     portfolio_value.columns = ['Transaction Date', 'Portfolio Value']
     
     # Save outputs to CSV files
-    final_df.to_csv('/Users/in22417145/PycharmProjects/portfolio/data/per_symbol_values.csv', index=False)
+    final_df.to_csv('data/per_symbol_values.csv', index=False)
     portfolio_value.to_csv(output_csv_path, index=False)
-    last_positions.to_csv('/Users/in22417145/PycharmProjects/portfolio/data/last_day_values.csv', index=False)
+    last_positions.to_csv('data/last_day_values.csv', index=False)
     
     print(f"Per-symbol daily values saved to 'per_symbol_daily_values.csv'")
     print(f"Aggregated portfolio values saved to '{output_csv_path}'")
     print(f"Last positions report saved to 'last_positions_report.csv'")
 
 # Example usage
-input_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-mf.csv'
-output_csv_path = '/Users/in22417145/PycharmProjects/portfolio/data/ind-stocks-output.csv'
+input_csv_path = 'data/ind-mf.csv'
+output_csv_path = 'data/ind-stocks-output.csv'
 get_portfolio_values(input_csv_path, output_csv_path)
 
 

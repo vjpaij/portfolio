@@ -34,5 +34,5 @@ def process_csv(input_csv, output_csv):
     print(f"Processed file saved as: {output_csv}")
 
 # Example usage
-process_csv("/Users/in22417145/PycharmProjects/portfolio/data/credit_card.csv", 
-            "/Users/in22417145/PycharmProjects/portfolio/data/credit_output.csv")
+process_csv("data/credit_card.csv", 
+            "data/credit_output.csv")

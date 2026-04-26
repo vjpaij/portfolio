@@ -3,8 +3,8 @@ import requests
 from datetime import date
 
 # --- Configuration ---
-CSV_FILE_PATH = '/Users/in22417145/PycharmProjects/portfolio/data/nps.csv'
-OUTPUT_CSV_FILE = '/Users/in22417145/PycharmProjects/portfolio/data/nps-total.csv'
+CSV_FILE_PATH = 'data/nps.csv'
+OUTPUT_CSV_FILE = 'data/nps-total.csv'
 
 SCHEME_TO_CODE = {
     "SBI PENSION FUND SCHEME E - TIER I Units": "SM001003",

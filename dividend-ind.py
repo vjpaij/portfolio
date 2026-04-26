@@ -69,6 +69,6 @@ def fetch_dividend_calendar(input_csv_path, output_csv_path):
         print("❌ No dividend data available for any symbols in FY 2024-25.")
 
 # Example usage
-input_csv = '/Users/in22417145/PycharmProjects/portfolio/data/ind-stocks.csv'
-output_csv = '/Users/in22417145/PycharmProjects/portfolio/data/dividend-calendar.csv'
+input_csv = 'data/ind-stocks.csv'
+output_csv = 'data/dividend-calendar.csv'
 fetch_dividend_calendar(input_csv, output_csv)

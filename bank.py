@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Step 1: Load the spreadsheet
-df = pd.read_csv("/Users/in22417145/PycharmProjects/portfolio/data/sbi.csv")  # or pd.read_csv("your_file.csv") if it's a CSV
+df = pd.read_csv("data/sbi.csv")  # or pd.read_csv("your_file.csv") if it's a CSV
 df['Transaction Date'] = pd.to_datetime(df['Transaction Date'])
 
 """
@@ -33,7 +33,7 @@ df_full.columns = ['Transaction Date', 'Balance', 'OriginalOrder']
 df_final = df_full[['Transaction Date', 'Balance']]  # remove helper column
 
 # Step 8: Save the new cleaned-up file
-df_full.to_csv("/Users/in22417145/PycharmProjects/portfolio/data/cleaned_output.csv", index=False)
+df_full.to_csv("data/cleaned_output.csv", index=False)
 
 """
 For dates in descending order, you can use the following code 
@@ -62,4 +62,4 @@ For dates in descending order, you can use the following code
 # df.index.name = 'Transaction Date'
 
 # # Step 9: Save result to a new file
-# df.to_csv("/Users/in22417145/PycharmProjects/portfolio/data/output_filled.csv")
+# df.to_csv("dataoutput_filled.csv")
