@@ -1,226 +1,259 @@
 import pandas as pd
 import yfinance as yf
-import numpy as np
-import datetime
+import os
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ------------------------------
-# CONFIG
+# CONFIGURATION
 # ------------------------------
-X_PERCENT = 25                        # Configurable % above EMA crossover
-ALERT_THRESHOLD = 6.5                 # % drop from high since crossover
 INPUT_CSV = "data/ind-stocks.csv"
 OUTPUT_CSV = "data/strategy-sell-booking.csv"
-MAX_THREADS = 20
+YF_CACHE_DIR = os.path.join(tempfile.gettempdir(), "portfolio-yfinance-cache")
+YF_HISTORY_PERIOD = "5y"
+MAX_THREADS = 12
 RETRY_COUNT = 3
-SLEEP_BETWEEN_BATCH = 0.2
-BELOW_EMA50 = 6.5 / 100           
-BELOW_RSI9 = 29                    
+RETRY_DELAY_SECONDS = 1
+SLEEP_BETWEEN_TASKS = 0.1
+
+# Strategy thresholds (placeholders you can change)
+CROSSOVER_GROWTH_PCT = 40.0        # Condition 1b: highest close after crossover must be >= 40% above crossover price
+RED_CANDLE_DAYS = 3                # Condition 1c: consecutive red candles to check
+BELOW_EMA21_PCT = 5.0              # Condition 1d: today's red candle close must be at least 5% below EMA21
+BELOW_EMA50_PCT = 6.5              # Condition 2a: current close is more than 6.5% below EMA50
+RSI_THRESHOLD = 26.0               # Condition 2b: current RSI10 is below 26
+RSI_PERIOD = 10                    # RSI period for condition 2
+EMA_SHORT = 21                     # Short EMA for crossover and Condition 1
+EMA_LONG = 50                      # Long EMA for crossover and Condition 2
+
+# ------------------------------
+# HELPER FUNCTIONS
 # ------------------------------
 
+os.makedirs(YF_CACHE_DIR, exist_ok=True)
+yf.cache.set_cache_location(YF_CACHE_DIR)
 
-# ------------------------------
-# SUPPORT FUNCTIONS
-# ------------------------------
-def safe_history(ticker, period="1y"):
-    """History fetch with retries."""
+
+def safe_history(ticker, period="1y", interval="1d"):
+    """Fetch Yahoo Finance history with retries."""
     for attempt in range(RETRY_COUNT):
         try:
-            data = yf.Ticker(ticker).history(period=period)
+            data = yf.Ticker(ticker).history(period=period, interval=interval)
             if not data.empty:
                 return data
         except Exception:
             pass
-        time.sleep(1)
+        time.sleep(RETRY_DELAY_SECONDS)
     return pd.DataFrame()
 
 
 def resolve_yahoo_ticker(symbol):
-    """Try .NS first, then .BO."""
+    """Fetch both NSE and BSE tickers, return the one with higher volume."""
+    tickers = []
     for suffix in [".NS", ".BO"]:
         ticker = symbol + suffix
-        data = safe_history(ticker, "5d")
+        data = safe_history(ticker, period="5d")
         if not data.empty:
-            return ticker
-    return None
-
-
-def get_latest_transaction(group):
-    """Pick ONLY the latest transaction of the symbol.
-
-    If latest row has Total Shares == 0 → ignore symbol completely.
-    """
-    latest = group.sort_values("Transaction Date").iloc[-1]
-
-    if latest["Total Shares"] <= 0:
+            avg_volume = data["Volume"].mean()
+            tickers.append((ticker, avg_volume))
+    
+    if not tickers:
         return None
+    
+    # Return ticker with highest average volume
+    return max(tickers, key=lambda x: x[1])[0]
 
-    return latest
+
+def compute_rsi(close_series, period=10):
+    """Compute RSI using Wilder-style smoothing."""
+    delta = close_series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    avg_gain = gain.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    avg_loss = loss.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
 
-def find_latest_ema_crossover(df):
-    """Find latest Close > EMA50 crossover."""
-    df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
-    df["prev_close"] = df["Close"].shift(1)
-    df["prev_ema"] = df["EMA50"].shift(1)
+def find_latest_ema_crossover(df, short_span=EMA_SHORT, long_span=EMA_LONG):
+    """Find the latest EMA short crossover above EMA long."""
+    short_col = f"EMA{short_span}"
+    long_col = f"EMA{long_span}"
+
+    if short_col not in df.columns:
+        df[short_col] = df["Close"].ewm(span=short_span, adjust=False).mean()
+    if long_col not in df.columns:
+        df[long_col] = df["Close"].ewm(span=long_span, adjust=False).mean()
+
+    prev_short = df[short_col].shift(1)
+    prev_long = df[long_col].shift(1)
 
     cross = df[
-        (df["prev_close"] <= df["prev_ema"]) &
-        (df["Close"] > df["EMA50"])
+        (prev_short <= prev_long) &
+        (df[short_col] > df[long_col])
     ]
 
     if cross.empty:
         return None
-
     return cross.iloc[-1]
 
 
-def compute_rsi(series, period=9):
-    """Compute RSI using Pandas, correctly aligned with index."""
-    delta = series.diff()
-
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
-
-    avg_gain = gain.rolling(period, min_periods=period).mean()
-    avg_loss = loss.rolling(period, min_periods=period).mean()
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi
+def get_latest_transaction(group):
+    """Return the latest transaction row for a symbol, if active."""
+    latest = group.sort_values("Transaction Date").iloc[-1]
+    if latest["Total Shares"] <= 0:
+        return None
+    return latest
 
 
 # ------------------------------
-# MAIN PER-SYMBOL PROCESSING
+# SYMBOL PROCESSING
 # ------------------------------
-def process_symbol(symbol, latest_txn):
-    txn_date = latest_txn["Transaction Date"].date()
-    total_shares = latest_txn["Total Shares"]
+
+def evaluate_conditions(symbol, latest_txn):
+    """Evaluate both condition sets for a symbol and return detailed result."""
+    output = {
+        "symbol": symbol,
+        "tran_date": latest_txn["Transaction Date"].date(),
+        "shares": int(latest_txn["Total Shares"]),
+        "sell": "NO",
+        "reason": None,
+        "cond1": "NO",
+        "cond2": "NO",
+        "price": None,
+        "ema21": None,
+        "ema50": None,
+        "rsi10": None,
+        "x_date": None,
+        "x_price": None,
+        "hi_cls": None,
+        "hi_gain": None,
+        "hi_gain_ok": None,
+        "l3_below21": None,
+        "l3_red": None,
+        "day3_ema21": None,
+        "ema50_gap": None,
+    }
 
     ticker = resolve_yahoo_ticker(symbol)
     if not ticker:
-        return {"symbol": symbol, "reason": "No Yahoo ticker found"}
+        output["reason"] = "No ticker"
+        return output
 
-    data = safe_history(ticker, "1y")
-    if data.empty:
-        return {"symbol": symbol, "yahoo_symbol": ticker, "reason": "No price history"}
+    history = safe_history(ticker, period=YF_HISTORY_PERIOD)
+    if history.empty:
+        output["reason"] = "No history"
+        return output
 
-    # -----------------------------
-    # COMPUTE EMA50 & RSI(9)
-    # -----------------------------
-    data["EMA50"] = data["Close"].ewm(span=50, adjust=False).mean()
-    data["RSI9"] = compute_rsi(data["Close"], 9)
+    history = history.copy()
+    history["EMA21"] = history["Close"].ewm(span=EMA_SHORT, adjust=False).mean()
+    history["EMA50"] = history["Close"].ewm(span=EMA_LONG, adjust=False).mean()
+    history[f"RSI{RSI_PERIOD}"] = compute_rsi(history["Close"], RSI_PERIOD)
 
-    # Latest values
-    current_close = data["Close"].iloc[-1]
-    current_ema50 = data["EMA50"].iloc[-1]
-    current_rsi9 = data["RSI9"].iloc[-1]
+    latest_row = history.iloc[-1]
+    current_close = float(latest_row["Close"])
+    current_ema50 = float(latest_row["EMA50"])
+    current_rsi = float(latest_row[f"RSI{RSI_PERIOD}"])
 
-    # -----------------------------
-    # SELL CONDITIONS
-    # -----------------------------
-    cond1 = current_close < current_ema50 * (1 - BELOW_EMA50)  
-    cond2 = current_rsi9 < BELOW_RSI9
+    output["price"] = round(float(latest_row["Close"]), 2)
+    output["ema21"] = round(float(latest_row["EMA21"]), 2)
+    output["ema50"] = round(float(latest_row["EMA50"]), 2)
+    output["rsi10"] = round(float(latest_row[f"RSI{RSI_PERIOD}"]), 2)
 
-    sell = "YES" if (cond1 and cond2) else "NO"
+    # Condition 1: EMA21 crosses over EMA50, price is up from crossover,
+    # then the latest 3 daily candles are red and below EMA21.
+    crossover = find_latest_ema_crossover(history)
+    if crossover is not None:
+        output["x_date"] = crossover.name.date()
+        crossover_close = float(crossover["Close"])
+        after_cross = history.loc[crossover.name:]
+        high_close_after_cross = float(after_cross["Close"].max())
 
-    # -----------------------------
-    # EMA CROSSOVER LOGIC
-    # -----------------------------
-    crossover = find_latest_ema_crossover(data)
-    if crossover is None:
-        return {
-            "symbol": symbol,
-            #"yahoo_symbol": ticker,
-            "reason": "No EMA crossover",
-            "sell": sell,
-            "current_price": current_close,
-            "ema50": current_ema50,
-            "rsi9": current_rsi9
-        }
+        output["x_price"] = round(crossover_close, 2)
+        output["hi_cls"] = round(high_close_after_cross, 2)
+        output["hi_gain"] = round(
+            (high_close_after_cross - crossover_close) / crossover_close * 100,
+            2,
+        )
+        output["hi_gain_ok"] = "YES" if output["hi_gain"] >= CROSSOVER_GROWTH_PCT else "NO"
 
-    crossover_date = crossover.name
-    crossover_close = crossover["Close"]
-    crossover_ema = crossover["EMA50"]
+        if output["hi_gain_ok"] == "YES" and len(history) >= RED_CANDLE_DAYS:
+            # history only contains trading days (weekends/holidays omitted), so tail(3) is last 3 trading days
+            recent = history.tail(RED_CANDLE_DAYS)
+            below_ema21_all = (recent["Close"] < recent["EMA21"]).all()
+            red_candles_all = (recent["Close"] < recent["Open"]).all()
 
-    # -----------------------------
+            output["l3_below21"] = "YES" if below_ema21_all else "NO"
+            output["l3_red"] = "YES" if red_candles_all else "NO"
 
-    # % FROM CROSSOVER 50EMA
-    # -----------------------------
-    pct_from_crossover_ema = (
-        (current_close - crossover_ema) / crossover_ema * 100
-    )
+            if below_ema21_all and red_candles_all:
+                third_red = recent.iloc[-1]
+                third_pct_ema21 = round(
+                    (float(third_red["Close"]) - float(third_red["EMA21"])) / float(third_red["EMA21"]) * 100,
+                    2,
+                )
 
-    # -----------------------------------------
-    # % DROP FROM HIGH SINCE CROSSOVER (ALERT)
-    # -----------------------------------------
-    after_cross = data.loc[crossover_date:]
-    high_since_cross = after_cross["Close"].max()
-    pct_below_high = (high_since_cross - current_close) / high_since_cross * 100
-    alert = "YES" if pct_below_high > ALERT_THRESHOLD else "NO"
+                output["day3_ema21"] = third_pct_ema21
 
-    # -----------------------------------------
-    # X% ABOVE CROSSOVER CONDITION
-    # -----------------------------------------
-    required_price = crossover_close * (1 + X_PERCENT / 100)
-    meets = current_close > required_price
+                # The third candle in the 3-day red sequence is today's candle.
+                if third_pct_ema21 <= -BELOW_EMA21_PCT:
+                    output["cond1"] = "YES"
+                    output["sell"] = "YES"
+                    output["reason"] = "Condition 1"
 
-    return {
-        "symbol": symbol,
-        #"yahoo_symbol": ticker,
-        "latest_transaction_date": txn_date,
-        "total_shares": total_shares,
+    # Condition 2: current close weakness below EMA50 and RSI weakness
+    if output["sell"] != "YES":
+        if output["price"] is not None and output["ema50"] is not None:
+            # Negative % means below EMA50
+            output["ema50_gap"] = round(
+                (current_close - current_ema50) / current_ema50 * 100,
+                2,
+            )
 
-        # Crossover details
-        "crossover_date": crossover_date.date(),
-        "crossover_close": round(crossover_close, 2),
-        "crossover_ema": round(crossover_ema, 2),
+        cond2a = current_close < current_ema50 * (1 - BELOW_EMA50_PCT / 100)
+        cond2b = current_rsi < RSI_THRESHOLD
 
-        # Price details
-        "current_price": round(current_close, 2),
-        "pct_from_crossover_ema": round(pct_from_crossover_ema, 2),
-        "ema50": round(current_ema50, 2),
-        "rsi9": round(current_rsi9, 2),
+        if cond2a and cond2b:
+            output["cond2"] = "YES"
+            output["sell"] = "YES"
+            output["reason"] = "Condition 2"
+        elif output["reason"] is None:
+            output["reason"] = "No sell conditions met"
 
-        # High since crossover
-        "high_since_crossover": round(high_since_cross, 2),
-        "pct_below_high": round(pct_below_high, 2),
-
-        # Alert & Sell conditions
-        "alert": alert,
-        "sell": sell,
-
-        # X% rule
-        "required_price_for_Xpct": round(required_price, 2),
-        "Xpct_condition_met": meets
-    }
+    return output
 
 
 # ------------------------------
-# PROGRAM ENTRY
+# MAIN PROGRAM
 # ------------------------------
-df = pd.read_csv(INPUT_CSV)
-df["Transaction Date"] = pd.to_datetime(df["Transaction Date"])
 
-groups = df.groupby("Symbol")
+def run():
+    df = pd.read_csv(INPUT_CSV)
+    df["Transaction Date"] = pd.to_datetime(df["Transaction Date"], format="%d-%b-%y")
 
-tasks = []
-results = []
+    grouped = df.groupby("Symbol")
+    tasks = []
+    results = []
 
-with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-    for symbol, group in groups:
-        latest = get_latest_transaction(group)
+    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        for symbol, group in grouped:
+            latest_txn = get_latest_transaction(group)
+            if latest_txn is None:
+                continue
+            tasks.append(executor.submit(evaluate_conditions, symbol, latest_txn))
+            time.sleep(SLEEP_BETWEEN_TASKS)
 
-        if latest is None:
-            continue  # skip entire symbol
+        for task in as_completed(tasks):
+            results.append(task.result())
 
-        tasks.append(executor.submit(process_symbol, symbol, latest))
-        time.sleep(SLEEP_BETWEEN_BATCH)
+    result_df = pd.DataFrame(results)
+    result_df = result_df.sort_values(["sell", "symbol"], ascending=[False, True])
+    result_df.to_csv(OUTPUT_CSV, index=False)
+    print(f"Done. Output written to: {OUTPUT_CSV}")
 
-    for task in as_completed(tasks):
-        results.append(task.result())
 
-pd.DataFrame(results).to_csv(OUTPUT_CSV, index=False)
-print("Done. Output written to:", OUTPUT_CSV)
+if __name__ == "__main__":
+    run()
