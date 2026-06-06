@@ -78,8 +78,8 @@ def compute_rsi(close_series, period=10):
     return rsi
 
 
-def find_latest_ema_crossover(df, short_span=EMA_SHORT, long_span=EMA_LONG):
-    """Find the latest EMA short crossover above EMA long."""
+def find_oldest_ema_crossover(df, start_date=None, short_span=EMA_SHORT, long_span=EMA_LONG):
+    """Find the oldest EMA short crossover above EMA long on or after start_date."""
     short_col = f"EMA{short_span}"
     long_col = f"EMA{long_span}"
 
@@ -96,9 +96,13 @@ def find_latest_ema_crossover(df, short_span=EMA_SHORT, long_span=EMA_LONG):
         (df[short_col] > df[long_col])
     ]
 
+    if start_date is not None:
+        start_date = pd.Timestamp(start_date).date()
+        cross = cross[pd.Series(cross.index.date, index=cross.index) >= start_date]
+
     if cross.empty:
         return None
-    return cross.iloc[-1]
+    return cross.iloc[0]
 
 
 def get_latest_transaction(group):
@@ -109,18 +113,90 @@ def get_latest_transaction(group):
     return latest
 
 
+def get_current_open_dates(df):
+    """Return each symbol's current open-position start date from running holdings."""
+    df = df.copy()
+    df["Total Shares"] = pd.to_numeric(df["Total Shares"], errors="coerce").fillna(0)
+    df["OriginalOrder"] = range(len(df))
+
+    open_dates = {}
+    for symbol, group in df.sort_values(["Symbol", "Transaction Date", "OriginalOrder"]).groupby("Symbol"):
+        open_date = None
+
+        for _, row in group.iterrows():
+            total_shares = int(row["Total Shares"])
+
+            if total_shares > 0 and open_date is None:
+                open_date = row["Transaction Date"]
+            elif total_shares <= 0:
+                open_date = None
+
+        if open_date is not None:
+            open_dates[symbol] = open_date
+
+    return open_dates
+
+
+def find_last_sell_indicator_date(history, crossover):
+    """Return the latest date where either sell indicator was true."""
+    cond1_dates = pd.DatetimeIndex([])
+
+    if crossover is not None:
+        crossover_close = float(crossover["Close"])
+        after_cross = history.loc[crossover.name:].copy()
+        after_cross["HighCloseSinceCross"] = after_cross["Close"].cummax()
+        after_cross["HighGainSinceCross"] = (
+            (after_cross["HighCloseSinceCross"] - crossover_close) / crossover_close * 100
+        )
+
+        recent_below_ema21 = (
+            after_cross["Close"]
+            .lt(after_cross["EMA21"])
+            .rolling(RED_CANDLE_DAYS)
+            .sum()
+            .eq(RED_CANDLE_DAYS)
+        )
+        recent_red = (
+            after_cross["Close"]
+            .lt(after_cross["Open"])
+            .rolling(RED_CANDLE_DAYS)
+            .sum()
+            .eq(RED_CANDLE_DAYS)
+        )
+        close_gap_ema21 = (after_cross["Close"] - after_cross["EMA21"]) / after_cross["EMA21"] * 100
+
+        cond1 = (
+            after_cross["HighGainSinceCross"].ge(CROSSOVER_GROWTH_PCT)
+            & recent_below_ema21
+            & recent_red
+            & close_gap_ema21.le(-BELOW_EMA21_PCT)
+        )
+        cond1_dates = after_cross.index[cond1]
+
+    ema50_gap_ok = history["Close"].lt(history["EMA50"] * (1 - BELOW_EMA50_PCT / 100))
+    rsi_ok = history[f"RSI{RSI_PERIOD}"].lt(RSI_THRESHOLD)
+    cond2_dates = history.index[ema50_gap_ok & rsi_ok]
+
+    sell_dates = cond1_dates.union(cond2_dates)
+    if sell_dates.empty:
+        return None
+    return sell_dates[-1].date()
+
+
 # ------------------------------
 # SYMBOL PROCESSING
 # ------------------------------
 
-def evaluate_conditions(symbol, latest_txn):
+def evaluate_conditions(symbol, latest_txn, open_date=None):
     """Evaluate both condition sets for a symbol and return detailed result."""
     output = {
         "symbol": symbol,
         "tran_date": latest_txn["Transaction Date"].date(),
+        "open_date": open_date.date() if open_date is not None else None,
         "shares": int(latest_txn["Total Shares"]),
         "sell": "NO",
         "reason": None,
+        "last_sell_date": None,
         "cond1": "NO",
         "cond2": "NO",
         "price": None,
@@ -163,9 +239,12 @@ def evaluate_conditions(symbol, latest_txn):
     output["ema50"] = round(float(latest_row["EMA50"]), 2)
     output["rsi10"] = round(float(latest_row[f"RSI{RSI_PERIOD}"]), 2)
 
-    # Condition 1: EMA21 crosses over EMA50, price is up from crossover,
-    # then the latest 3 daily candles are red and below EMA21.
-    crossover = find_latest_ema_crossover(history)
+    # Condition 1: the oldest EMA21-over-EMA50 crossover since the current
+    # position opened, price is up from crossover, then the latest 3 daily
+    # candles are red and below EMA21.
+    crossover = find_oldest_ema_crossover(history, start_date=open_date)
+    output["last_sell_date"] = find_last_sell_indicator_date(history, crossover)
+
     if crossover is not None:
         output["x_date"] = crossover.name.date()
         crossover_close = float(crossover["Close"])
@@ -233,6 +312,7 @@ def evaluate_conditions(symbol, latest_txn):
 def run():
     df = pd.read_csv(INPUT_CSV)
     df["Transaction Date"] = pd.to_datetime(df["Transaction Date"], format="%d-%b-%y")
+    open_dates = get_current_open_dates(df)
 
     grouped = df.groupby("Symbol")
     tasks = []
@@ -243,7 +323,7 @@ def run():
             latest_txn = get_latest_transaction(group)
             if latest_txn is None:
                 continue
-            tasks.append(executor.submit(evaluate_conditions, symbol, latest_txn))
+            tasks.append(executor.submit(evaluate_conditions, symbol, latest_txn, open_dates.get(symbol)))
             time.sleep(SLEEP_BETWEEN_TASKS)
 
         for task in as_completed(tasks):
