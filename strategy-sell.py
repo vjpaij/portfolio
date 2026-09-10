@@ -19,7 +19,7 @@ SLEEP_BETWEEN_TASKS = 0.1
 
 # Strategy thresholds (placeholders you can change)
 CROSSOVER_GROWTH_PCT = 40.0        # Condition 1b: highest close after crossover must be >= 40% above crossover price
-RED_CANDLE_DAYS = 3                # Condition 1c: consecutive red candles to check
+RED_CANDLE_DAYS = 4                # Condition 1c: consecutive red candles to check
 BELOW_EMA21_PCT = 5.0              # Condition 1d: today's red candle close must be at least 5% below EMA21
 BELOW_EMA50_PCT = 6.5              # Condition 2a: current close is more than 6.5% below EMA50
 RSI_THRESHOLD = 26.0               # Condition 2b: current RSI10 is below 26

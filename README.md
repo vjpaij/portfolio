@@ -1,36 +1,36 @@
 Mutual Fund Abbreviations:
 
 
-0P0000XVXV.BO -> Aditya BSL Digital India Dir Gr
-0P0000XVYC.BO -> Aditya BSL ELSS Tax Saver Dir Gr
-0P0000XVTL.BO -> Axis Large Cap Fund Dir Gr
-0P0000XVU7.BO -> Axis ELSS Tax Saver Fd Dir Gr
-0P00011MAX.BO -> Axis Small Cap Fund Dir Gr
-0P0001J6FU.BO -> Bandhan Small Cap Dir Gr
-0P0000XW04.BO -> Canara Robeco ELSS Tax Saver Dir Gr
-0P0001FKEE.BO -> Canara Robeco Small Cap Dir Gr
-0P0000XW2M.BO -> DSP Midcap Dir Gr
-0P0000XW5X.BO -> Franklin Ind Feeder-Frank US Opp Dir Gr
-0P0001BA46.BO -> Franklin Ind Feeder-Frank US Opp Fund
-0P0000XW8F.BO -> HDFC Mid-Cap Opportunities Dir Gr
-0P000133SB.BO -> HSBC Small Cap Fund Dir Gr
-0P000148GR.BO -> ICICI Prudential Constant Maturity Gilt
-0P0000XUZ6.BO -> ICICI Pru Technology Dir Gr
-0P0000XUZC.BO -> ICICI Pru US Bluechip Equity Dir Gr
-0P0000XVI2.BO -> Invesco India ELSS Tax Saver Fund Dir Gr
-0P0000XVGP.BO -> Invesco India largecap Dir Gr
-0P00017844.BO -> Mirae Asset ELSS Tax Saver Dir Gr
-0P0000XV9V.BO -> Mirae Asset Large & Midcap Dir Gr
-0P00012ALS.BO -> Motilal Oswal Midcap Dir Gr
-0P0000I4UP.BO -> Nippon India Gilt Sec Gr
-0P0000XVG6.BO -> Nippon India Large Cap Dir Gr
-0P0000XW3I.BO -> PGIM India Global Eq Opp Dir Gr
-0P00011MAT.BO -> PGIM India Midcap Opps Fund Dir Gr
-0P0000YWL1.BO -> Parag Parikh Long Term Equity Direct Growth
-0P0000XW4E.BO -> Quant Active Dir Gr
-0P0001KWOC.BO -> Quant ESG Equity Fund
-0P0000XW4O.BO -> Quant Infrastructure Dir Gr
-0P0000XW4F.BO -> Quant Large and Mid Cap Dir Bns
-0P0000XW4J.BO -> Quant Small Cap Dir Gr
-0P0001784G.BO -> Tata Digital India Dir Gr
-0P00014GLS.BO -> Tata ELSS Tax Saver Dir Gr
+120539 -> Aditya BSL Digital India Dir Gr (Yahoo: 0P0000XVXV.BO)
+119544 -> Aditya BSL ELSS Tax Saver Dir Gr (Yahoo: 0P0000XVYC.BO)
+120465 -> Axis Large Cap Fund Dir Gr (Yahoo: 0P0000XVTL.BO)
+120503 -> Axis ELSS Tax Saver Fd Dir Gr (Yahoo: 0P0000XVU7.BO)
+125354 -> Axis Small Cap Fund Dir Gr (Yahoo: 0P00011MAX.BO)
+147946 -> Bandhan Small Cap Dir Gr (Yahoo: 0P0001J6FU.BO)
+118285 -> Canara Robeco ELSS Tax Saver Dir Gr (Yahoo: 0P0000XW04.BO)
+146130 -> Canara Robeco Small Cap Dir Gr (Yahoo: 0P0001FKEE.BO)
+119071 -> DSP Midcap Dir Gr (Yahoo: 0P0000XW2M.BO)
+118551 -> Franklin Ind Feeder-Frank US Opp Dir Gr (Yahoo: 0P0000XW5X.BO)
+116633 -> Franklin Ind Feeder-Frank US Opp Fund (Yahoo: 0P0001BA46.BO)
+118989 -> HDFC Mid-Cap Opportunities Dir Gr (Yahoo: 0P0000XW8F.BO)
+151130 -> HSBC Small Cap Fund Dir Gr (Yahoo: 0P000133SB.BO)
+131061 -> ICICI Prudential Constant Maturity Gilt (Yahoo: 0P000148GR.BO)
+120594 -> ICICI Pru Technology Dir Gr (Yahoo: 0P0000XUZ6.BO)
+120186 -> ICICI Pru US Bluechip Equity Dir Gr (Yahoo: 0P0000XUZC.BO)
+120416 -> Invesco India ELSS Tax Saver Fund Dir Gr (Yahoo: 0P0000XVI2.BO)
+120392 -> Invesco India largecap Dir Gr (Yahoo: 0P0000XVGP.BO)
+135781 -> Mirae Asset ELSS Tax Saver Dir Gr (Yahoo: 0P00017844.BO)
+118834 -> Mirae Asset Large & Midcap Dir Gr (Yahoo: 0P0000XV9V.BO)
+127042 -> Motilal Oswal Midcap Dir Gr (Yahoo: 0P00012ALS.BO)
+118672 -> Nippon India Gilt Sec Gr (Yahoo: 0P0000I4UP.BO)
+118632 -> Nippon India Large Cap Dir Gr (Yahoo: 0P0000XVG6.BO)
+138528 -> PGIM India Global Eq Opp Dir Gr (Yahoo: 0P0000XW3I.BO)
+125307 -> PGIM India Midcap Opps Fund Dir Gr (Yahoo: 0P00011MAT.BO)
+122639 -> Parag Parikh Long Term Equity Direct Growth (Yahoo: 0P0000YWL1.BO)
+120843 -> Quant Active Dir Gr (Yahoo: 0P0000XW4E.BO)
+148564 -> Quant ESG Equity Fund (Yahoo: 0P0001KWOC.BO)
+120833 -> Quant Infrastructure Dir Gr (Yahoo: 0P0000XW4O.BO)
+120824 -> Quant Large and Mid Cap Dir Bns (Yahoo: 0P0000XW4F.BO)
+120828 -> Quant Small Cap Dir Gr (Yahoo: 0P0000XW4J.BO)
+135800 -> Tata Digital India Dir Gr (Yahoo: 0P0001784G.BO)
+132756 -> Tata ELSS Tax Saver Dir Gr (Yahoo: 0P00014GLS.BO)

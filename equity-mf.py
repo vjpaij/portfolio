@@ -4,8 +4,46 @@ For Mutual Funds
 
 
 import pandas as pd
-import yfinance as yf
+import requests
 from datetime import datetime, timedelta
+from io import StringIO
+
+AMFI_NAV_HISTORY_URL = 'https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx'
+
+def get_amfi_nav_history(start_date, end_date, scheme_codes):
+    params = {
+        'tp': 1,
+        'frmdt': start_date.strftime('%d-%b-%Y'),
+        'todt': end_date.strftime('%d-%b-%Y'),
+    }
+    response = requests.get(
+        AMFI_NAV_HISTORY_URL,
+        params=params,
+        headers={'User-Agent': 'Mozilla/5.0'},
+        timeout=90,
+    )
+    response.raise_for_status()
+
+    nav = pd.read_csv(
+        StringIO(response.text),
+        sep=';',
+        skipinitialspace=True,
+        dtype=str,
+    )
+    nav.columns = nav.columns.str.strip()
+    nav['Scheme Code'] = nav['Scheme Code'].astype(str).str.strip()
+    nav['Transaction Date'] = pd.to_datetime(
+        nav['Date'].astype(str).str.strip(),
+        dayfirst=True,
+        errors='coerce',
+    )
+    nav['Price'] = pd.to_numeric(nav['Net Asset Value'], errors='coerce')
+    nav = nav[
+        nav['Scheme Code'].isin(scheme_codes)
+        & nav['Transaction Date'].notna()
+        & nav['Price'].notna()
+    ]
+    return nav[['Scheme Code', 'Transaction Date', 'Price']]
 
 def get_portfolio_values(input_csv_path, output_csv_path):
     # Read the input CSV file
@@ -17,8 +55,11 @@ def get_portfolio_values(input_csv_path, output_csv_path):
     # Convert Transaction Date to datetime
     df_transactions['Transaction Date'] = pd.to_datetime(df_transactions['Transaction Date'], dayfirst=True)
     
-    # Get unique symbols
+    # Get unique AMFI scheme codes
     symbols = df_transactions['Symbol'].unique()
+    start_date = datetime.today() - timedelta(days=15)
+    end_date = datetime.today()
+    nav_history = get_amfi_nav_history(start_date, end_date, symbols)
     
     # Initialize DataFrames for outputs
     final_df = pd.DataFrame()
@@ -31,28 +72,12 @@ def get_portfolio_values(input_csv_path, output_csv_path):
                        .drop_duplicates('Transaction Date', keep='last')
                        .copy())
         
-        # Get historical prices for this symbol
-        # start_date = symbol_trans['Transaction Date'].min() - timedelta(days=1)
-        start_date = datetime.today() - timedelta(days=15)
-        end_date = datetime.today()
-        
         try:
-            # Download historical data
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(start=start_date, end=end_date)
-            
+            # Select historical NAVs for this AMFI scheme code.
+            hist = nav_history[nav_history['Scheme Code'] == symbol]
             if hist.empty:
-                print(f"No data found for {symbol}")
+                print(f"No AMFI NAV data found for {symbol}")
                 continue
-            
-            # Reset index and format date
-            hist = hist.reset_index()
-            hist['Date'] = pd.to_datetime(hist['Date']).dt.date
-            hist['Transaction Date'] = pd.to_datetime(hist['Date'])
-            
-            # Keep only Date and Close price
-            hist = hist[['Transaction Date', 'Close']]
-            hist.rename(columns={'Close': 'Price'}, inplace=True)
             
             # Create a date range from first transaction to today
             date_range = pd.date_range(start=symbol_trans['Transaction Date'].min(), 
@@ -74,7 +99,7 @@ def get_portfolio_values(input_csv_path, output_csv_path):
             merged = pd.merge(merged, hist, on='Transaction Date', how='left')
             
             # Forward fill prices for bank holidays
-            merged['Price'].ffill(inplace=True)
+            merged['Price'] = merged['Price'].ffill()
             
             # Calculate total value
             merged['Total value'] = merged['Total Shares'] * merged['Price']
